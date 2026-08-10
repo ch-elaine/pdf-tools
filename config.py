@@ -95,14 +95,7 @@ TEXT_FONT_SIZE = _float("TEXT_FONT_SIZE", 9.0)
 TEXT_LINE_HEIGHT = _float("TEXT_LINE_HEIGHT", 1.35)
 TEXT_TAB_WIDTH = _int("TEXT_TAB_WIDTH", 4)
 
-#: Base-14 font for plain Latin text. Never embedded, so those PDFs stay tiny.
-TEXT_BASE_FONT = _str("TEXT_BASE_FONT", "cour")
-#: Wide-coverage font embedded when Courier cannot render the text. Comes from
-#: the pymupdf-fonts package: monospaced, covers Greek, Cyrillic, Arabic, Hebrew.
-TEXT_UNICODE_FONT = _str("TEXT_UNICODE_FONT", "cascadia")
-#: Optional path to your own .ttf, used ahead of the packaged font - the way in
-#: for scripts Cascadia lacks, such as Chinese, Japanese or Korean.
-TEXT_FONT = _str("TEXT_FONT", "")
+#: The two fonts are fixed in pdf_tools/fonts.py - nothing to set here.
 
 #: Safety valve for a runaway HTML layout.
 HTML_MAX_PAGES = _int("HTML_MAX_PAGES", 2000)

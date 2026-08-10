@@ -1,56 +1,57 @@
 # pdf-tools
 
-One page, one button. Upload a pile of files — get back a single compressed PDF,
-every page A4.
+A one-page website: pick some files, get back a single compressed PDF where every
+page is A4.
 
-- **PDFs** are compressed and rescaled to A4 if they arrive as Letter, A3 or
-  anything else. Text stays selectable and hyperlinks keep working.
-- **Anything else** (photos, text, code, CSV, HTML, video) becomes pages, merged
-  in the order you picked the files, then compressed the same way.
-- The result downloads straight back to the browser. Nothing is kept afterwards.
+Throw in PDFs, photos, text files, code, CSV, HTML, even a video. PDFs get
+compressed and rescaled to A4 if they came as Letter or A3; everything else is
+turned into pages first. They're merged in the order you picked them, compressed,
+and the finished PDF downloads itself. Nothing is kept on the server.
 
-The **quality slider is the dpi**, 10–300, default 100: no image is kept at more
-than that many dots per inch for the size it appears on the page. 300 is print
-quality, 150 is comfortable, 100 is fine on screen. If compression cannot beat the
-original, the original comes back untouched.
+The slider is just dpi — 10 to 300, default 100. No image is kept sharper than
+that for the size it appears at. 300 is print quality, 150 is comfortable, 100
+looks fine on screen. If compressing can't beat the original, you get the original
+back instead.
 
-## Install and run
+## Running it
 
-Needs Python 3.10+.
+You need Python 3.10 or newer.
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python app.py --port 8080          # or just: python app.py
+python app.py --port 8080
 ```
 
-`--port` / `-p`, `--host` and `--debug` are all optional; defaults come from
-[config.py](config.py). Use `--host 0.0.0.0` to reach it from other machines.
+That's it — open the address it prints. `--port` defaults to 5000, and
+`--host 0.0.0.0` makes it reachable from other machines.
 
-For a long-running server, use a real WSGI server with a generous timeout —
-compression is CPU-bound and a Raspberry Pi is not fast:
+To leave it running properly, put it behind gunicorn with a long timeout, because
+compressing is slow on a Pi:
 
 ```sh
 pip install gunicorn
 gunicorn -w 1 -b 0.0.0.0:8080 --timeout 600 app:app
 ```
 
-**One worker** on a 1 GB machine: each concurrent request pays the full memory
-cost (see below). Run it from the project directory, or add `--chdir`.
+Stick to **one worker** on a 1 GB machine — each request in flight needs the memory
+described below. Start it from the project folder so `config.py` is found.
 
-## Optional: ffmpeg
+## ffmpeg (optional)
 
-Everything works without it. Install `ffmpeg` (`sudo apt install ffmpeg`) to also
-accept HEIC/HEIF/AVIF/JXL/JP2 and RAW photos, and video files, which become a 3×3
-contact sheet of frames. Without it those uploads are refused with a message
-saying so; every other format is unaffected.
+Everything above works without it. If you install it:
 
-ffmpeg is found on `PATH` — no install location is hard-coded. `FFMPEG_BIN` points
-at a specific binary if you need that.
+```sh
+sudo apt install ffmpeg
+```
 
-## Supported formats
+you also get HEIC, AVIF and RAW photos from phones and cameras, plus video files,
+which turn into a page holding nine frames from across the clip. Without ffmpeg
+those uploads are politely refused and nothing else changes.
+
+## What you can upload
 
 | Kind | Extensions | Needs |
 | --- | --- | --- |
@@ -61,46 +62,46 @@ at a specific binary if you need that.
 | Camera photos | `.heic .heif .avif .jxl .jp2 .j2k .dng .cr2 .nef .arw` | ffmpeg |
 | Video | `.mp4 .mov .m4v .avi .mkv .webm .mpg .mpeg .wmv .flv` | ffmpeg |
 
-Office documents are **not** supported — converting them would mean installing
-LibreOffice. Export them to PDF first. Password-protected PDFs are refused; empty
-files in a batch are skipped and reported.
+Word, Excel and PowerPoint files aren't supported — that would mean installing all
+of LibreOffice. Export them to PDF first. Password-protected PDFs are refused, and
+empty files in a batch are skipped and mentioned in the result.
 
-Fonts come from the `pymupdf-fonts` package, so no system fonts are needed. Plain
-Latin text uses built-in Courier; anything else embeds Cascadia Mono, which covers
-Greek, Cyrillic, Arabic, Hebrew and box drawing. Characters no font has (CJK,
-emoji) become `?` and the page says so — point `TEXT_FONT` at a `.ttf` if you need
-those scripts.
+Text pages use Courier for plain Latin text and Cascadia Mono, which comes with the
+`pymupdf-fonts` package, for anything needing Greek, Cyrillic, Arabic or Hebrew. No
+system fonts are involved and there's nothing to configure. Chinese, Japanese,
+Korean and emoji aren't covered by either font, so they come out as `?` and the
+page tells you.
 
 ## Memory
 
-Peak memory is the reason `MAX_UPLOAD_MB` is 120. Measured worst case (many
-different image-heavy PDFs at 300 dpi):
+`MAX_UPLOAD_MB` is 120 because of this. Worst case measured — a pile of different
+image-heavy PDFs at 300 dpi:
 
-| Upload | Peak RSS |
+| Upload | Peak memory |
 | --- | --- |
 | 40 MB | 385 MB |
 | 80 MB | 500 MB |
 | 120 MB | 700 MB |
 | 200 MB | 861 MB |
 
-So roughly **250 MB + 3 MB per MB uploaded**, which keeps a 120 MB upload inside a
-1 GB budget. Ordinary uploads at the default dpi use about half as much. Raise the
-cap only with more RAM, and remember one worker means one of these at a time.
+Roughly 250 MB plus 3 MB per MB uploaded, so 120 MB stays inside a 1 GB budget.
+Normal uploads at the default dpi use about half of that. Only raise the cap if the
+machine has more RAM.
 
-## Configuration
+## Settings
 
-Everything lives in [config.py](config.py), and every value can be overridden by
-an environment variable of the same name:
+They're all in [config.py](config.py) with a comment each, and any of them can be
+set as an environment variable instead:
 
 ```sh
 MAX_UPLOAD_MB=60 DPI_DEFAULT=150 python app.py --port 8080
 ```
 
-The ones worth knowing: `MAX_UPLOAD_MB`, `MAX_FILES`, `DPI_MIN`/`DPI_MAX`/
-`DPI_DEFAULT`, `JPEG_QUALITY`, `PAGE_SIZE` (any name PyMuPDF knows, e.g. `letter`),
-`ALLOW_LANDSCAPE` (set `0` to force every page upright), and `TEXT_FONT`.
+The useful ones: `MAX_UPLOAD_MB`, `MAX_FILES`, `DPI_DEFAULT`, `JPEG_QUALITY`,
+`PAGE_SIZE` (`letter`, `a5`, …) and `ALLOW_LANDSCAPE` (set it to `0` if you want
+every page upright, even wide ones).
 
-## How it is organised
+## Layout of the code
 
 ```
 app.py                     Flask routes and the --port command line
@@ -111,25 +112,25 @@ pdf_tools/
   compress.py              image downsampling, font subsetting, saving
   layout.py                page geometry, and keeping links intact when resizing
   imaging.py               decode any bitmap, place it on a page
-  fonts.py                 font choice and line wrapping
+  fonts.py                 the two fonts, and line wrapping
   quality.py               the dpi slider
   externals.py             finding ffmpeg, and calling it
   memory.py                purging MuPDF's page cache
   converters/              one module per format, plus the registry
 ```
 
-`pipeline.py` knows nothing about formats: it asks the registry which converter
-claims a file extension and lets it append pages. To add a format, add a
-`Converter` subclass in `converters/` declaring its `extensions`, and list it in
-`REGISTRY`. Two converters claiming the same extension is a startup error.
+`pipeline.py` doesn't know about any format. It asks the registry which converter
+claims a file extension and lets it add pages. To support something new, write a
+`Converter` subclass in `converters/`, list its extensions, and add it to
+`REGISTRY`. If two converters claim the same extension the app refuses to start.
 
-## Limitations
+## Known limits
 
-- **No OCR.** A scanned PDF is compressed, not read.
-- **Arabic and Hebrew are not shaped.** The glyphs embed and stay searchable, but
-  letters are not joined or reordered right-to-left.
-- **Video becomes one page** of sampled frames, not every frame.
-- Resizing a page to A4 keeps text and links but drops other annotations
-  (comments, highlights, form fields). Pages already A4 are left untouched.
+- No OCR — a scanned PDF gets compressed, not read.
+- Arabic and Hebrew letters aren't joined or reordered right-to-left, though the
+  text is still searchable.
+- A video becomes one page of sampled frames, not every frame.
+- Resizing a page to A4 keeps its text and links but loses comments, highlights and
+  form fields. Pages already A4 are left completely alone.
 - 1-bit scans and images with transparency are left as they are; re-encoding them
   would make them bigger or lose their masks.
