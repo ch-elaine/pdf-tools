@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF Compressor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="card">
+    <h1>PDF Compressor</h1>
+    <p class="sub">
+      Drop in PDFs, images, documents or text files. They come back as one
+      compressed PDF, every page {{ page_size }}.
+    </p>
+
+    <form id="form" action="/process" method="post" enctype="multipart/form-data">
+      <input id="picker" type="file" name="files" multiple accept="{{ accept }}" hidden>
+      <button id="pick" type="button" class="primary">Choose files</button>
+
+      <div class="quality">
+        <label class="quality-row" for="dpi">
+          <span>Quality</span>
+          <output id="dpi-value" for="dpi">{{ slider.default }} dpi</output>
+        </label>
+        <input id="dpi" name="dpi" type="range"
+               min="{{ slider.min }}" max="{{ slider.max }}"
+               step="{{ slider.step }}" value="{{ slider.default }}">
+        <div class="quality-ends">
+          <span>{{ slider.min }} dpi · smaller file</span>
+          <span>{{ slider.max }} dpi · print</span>
+        </div>
+      </div>
+    </form>
+
+    <div id="drop" class="drop">or drag files here</div>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <ul id="files" class="files"></ul>
+
+    <p class="fine">
+      Up to {{ max_files }} files, {{ max_upload_mb }} MB per upload.
+      Nothing is stored on the server.
+    </p>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
