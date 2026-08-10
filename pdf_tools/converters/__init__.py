@@ -9,7 +9,6 @@ from __future__ import annotations
 from .base import Context, Converter, Upload
 from .html import HtmlConverter
 from .image import CameraImageConverter, ImageConverter
-from .office import OfficeConverter
 from .pdf_doc import PdfConverter
 from .text import TextConverter
 from .video import VideoConverter
@@ -21,7 +20,6 @@ REGISTRY: tuple[Converter, ...] = (
     TextConverter(),
     HtmlConverter(),
     VideoConverter(),
-    OfficeConverter(),
 )
 
 

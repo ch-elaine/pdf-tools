@@ -46,9 +46,14 @@ HOST = _str("HOST", "127.0.0.1")
 PORT = _int("PORT", 5000)
 DEBUG = _bool("DEBUG", False)
 
-#: Largest total upload accepted, in megabytes. Peak memory is a few times the
-#: biggest single file, so keep this modest on a 1-2 GB Raspberry Pi.
-MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 500)
+#: Largest total upload accepted, in megabytes.
+#:
+#: This is the memory dial. Measured worst case - image-heavy PDFs, all different,
+#: at 300 dpi - peaks at roughly 250 MB + 3 MB per MB uploaded, so 120 MB of
+#: uploads peaks near 700 MB and stays inside a 1 GB budget. Ordinary uploads at
+#: the default dpi use about half that. Raise it only with more RAM, and remember
+#: each concurrent request pays the cost again: on a 1 GB machine, run one worker.
+MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 120)
 #: Most files accepted in one submission.
 MAX_FILES = _int("MAX_FILES", 100)
 
@@ -90,20 +95,14 @@ TEXT_FONT_SIZE = _float("TEXT_FONT_SIZE", 9.0)
 TEXT_LINE_HEIGHT = _float("TEXT_LINE_HEIGHT", 1.35)
 TEXT_TAB_WIDTH = _int("TEXT_TAB_WIDTH", 4)
 
-#: Point TEXT_FONT at any .ttf to render scripts the fonts below do not cover.
+#: Base-14 font for plain Latin text. Never embedded, so those PDFs stay tiny.
+TEXT_BASE_FONT = _str("TEXT_BASE_FONT", "cour")
+#: Wide-coverage font embedded when Courier cannot render the text. Comes from
+#: the pymupdf-fonts package: monospaced, covers Greek, Cyrillic, Arabic, Hebrew.
+TEXT_UNICODE_FONT = _str("TEXT_UNICODE_FONT", "cascadia")
+#: Optional path to your own .ttf, used ahead of the packaged font - the way in
+#: for scripts Cascadia lacks, such as Chinese, Japanese or Korean.
 TEXT_FONT = _str("TEXT_FONT", "")
-#: Searched in order for non-Latin text; the built-in Courier is used if none
-#: exist. Conventional locations, not requirements.
-UNICODE_FONT_CANDIDATES = (
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-    "/Library/Fonts/Arial Unicode.ttf",
-    "C:/Windows/Fonts/consola.ttf",
-)
 
 #: Safety valve for a runaway HTML layout.
 HTML_MAX_PAGES = _int("HTML_MAX_PAGES", 2000)
@@ -119,15 +118,13 @@ MIN_IMAGE_GAIN = _float("MIN_IMAGE_GAIN", 0.10)
 MAX_IMAGE_PIXELS = _int("MAX_IMAGE_PIXELS", 500_000_000)
 
 # --------------------------------------------------------------------------- #
-# optional external tools
+# ffmpeg: the only optional external tool
 # --------------------------------------------------------------------------- #
-#: Command names looked up on PATH. FFMPEG_BIN / SOFFICE_BIN override these with
-#: an explicit path; no install location is ever hard-coded.
+#: Command names looked up on PATH. FFMPEG_BIN overrides this with an explicit
+#: path; no install location is ever hard-coded.
 FFMPEG_NAMES = ("ffmpeg",)
-SOFFICE_NAMES = ("soffice", "libreoffice")
 FFMPEG_TIMEOUT = _int("FFMPEG_TIMEOUT", 120)
 FFPROBE_TIMEOUT = _int("FFPROBE_TIMEOUT", 30)
-SOFFICE_TIMEOUT = _int("SOFFICE_TIMEOUT", 180)
 
 #: Video contact sheet grid, as columns x rows.
 CONTACT_SHEET = (_int("CONTACT_SHEET_COLS", 3), _int("CONTACT_SHEET_ROWS", 3))

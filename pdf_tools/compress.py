@@ -10,6 +10,7 @@ from PIL import Image
 import config
 
 from .imaging import flatten, to_jpeg
+from .memory import release_caches
 from .quality import Quality
 
 #: Keep a re-encode only if it saves at least this fraction of the bytes.
@@ -84,16 +85,19 @@ def shrink_images(doc: pymupdf.Document, quality: Quality) -> int:
 
             dpi = max(width / (shown_w / 72), height / (shown_h / 72))
             scale = min(1.0, quality.target_dpi / dpi) if dpi > 0 else 1.0
+            wanted = (max(1, int(width * scale)), max(1, int(height * scale)))
             try:
                 with Image.open(io.BytesIO(data)) as im:
+                    if scale < 1.0:
+                        # Decode a JPEG straight to a smaller size where possible:
+                        # a full-resolution bitmap is the biggest thing in memory
+                        # here, and it is about to be thrown away anyway.
+                        im.draft(None, wanted)
                     im.load()
                     if im.mode == "1":
                         continue  # bitonal scans beat any JPEG already
-                    if scale < 1.0:
-                        im = im.resize(
-                            (max(1, int(width * scale)), max(1, int(height * scale))),
-                            Image.LANCZOS,
-                        )
+                    if im.size != wanted and scale < 1.0:
+                        im = im.resize(wanted, Image.LANCZOS)
                     candidate = to_jpeg(flatten(im), quality.jpeg_quality)
             except Exception:  # noqa: BLE001 - unsupported codec (JBIG2, JPX, ...)
                 continue
@@ -104,6 +108,7 @@ def shrink_images(doc: pymupdf.Document, quality: Quality) -> int:
                     replaced += 1
                 except Exception:  # noqa: BLE001
                     continue
+        release_caches()
     return replaced
 
 

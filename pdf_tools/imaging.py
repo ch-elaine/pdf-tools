@@ -11,7 +11,7 @@ import config
 
 from .errors import ProcessingError
 from .externals import ffmpeg_still, find
-from .layout import fit, size_for
+from .layout import PORTRAIT, fit, size_for
 from .quality import Quality
 
 Image.MAX_IMAGE_PIXELS = config.MAX_IMAGE_PIXELS
@@ -40,10 +40,30 @@ def to_jpeg(im: Image.Image, quality: int) -> bytes:
     return buf.getvalue()
 
 
-def open_image(blob: bytes, name: str, suffix: str) -> Image.Image:
-    """Decode with Pillow, falling back to ffmpeg for formats it cannot read."""
+def widest_useful_px(quality: Quality) -> int:
+    """Most pixels across that any page can actually show at this dpi.
+
+    Used as a decode hint: a 40 megapixel photo never needs to be unpacked in
+    full just to be shrunk, and the full-size bitmap is the largest single thing
+    in memory while a page is being built.
+    """
+    longest = max(*PORTRAIT) - 2 * config.IMAGE_MARGIN
+    return max(1, int(quality.target_dpi * longest / 72))
+
+
+def open_image(
+    blob: bytes, name: str, suffix: str, hint_px: int | None = None
+) -> Image.Image:
+    """Decode with Pillow, falling back to ffmpeg for formats it cannot read.
+
+    `hint_px` lets JPEGs decode straight to a smaller size (Pillow's draft mode
+    uses the JPEG scaling factors), which costs a fraction of the memory and time.
+    It never decodes smaller than the hint, so quality is unaffected.
+    """
     try:
         im = Image.open(io.BytesIO(blob))
+        if hint_px:
+            im.draft(None, (hint_px, hint_px))
         im.load()
         return im
     except Exception as exc:  # noqa: BLE001 - try the heavier decoder before giving up

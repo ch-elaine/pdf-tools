@@ -23,7 +23,6 @@ from .errors import ProcessingError
 # tool name -> (command names to try on PATH, what it buys you)
 OPTIONAL_TOOLS: dict[str, tuple[tuple[str, ...], str]] = {
     "ffmpeg": (config.FFMPEG_NAMES, "HEIC/AVIF/RAW photos and video frames"),
-    "soffice": (config.SOFFICE_NAMES, "Word/Excel/PowerPoint documents"),
 }
 
 

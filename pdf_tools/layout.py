@@ -70,45 +70,54 @@ def _remap(rect: pymupdf.Rect, source: pymupdf.Rect, target: pymupdf.Rect) -> py
     )
 
 
-def _merge_mirrors_destinations() -> bool:
-    """Does this PyMuPDF mirror GoTo destinations when merging documents?
+#: Heights used by the probe below; they must differ for the bug to show.
+_PROBE_LINK_PAGE_HEIGHT = 800.0
+_PROBE_DEST_PAGE_HEIGHT = 1000.0
+_PROBE_DEST_Y = 200.0
 
-    Up to at least 1.28, insert_pdf writes a jump destination's y flipped, so a
-    link that pointed at the top of a page ends up pointing near the bottom. It
-    is cheaper to ask than to assume: if a later release fixes it, this probe
-    turns the workaround off by itself.
+
+def _merge_shifts_destinations() -> bool:
+    """Does this PyMuPDF mis-convert GoTo destinations when merging documents?
+
+    Up to at least 1.28, insert_pdf converts a jump destination using the height
+    of the page the link sits on instead of the height of the page it points at,
+    so the destination slides by the difference between the two. Documents whose
+    pages are all the same height are unaffected, which is why the probe uses two
+    different heights. Asking beats assuming: if a later release fixes this, the
+    probe turns the workaround off by itself.
     """
     try:
         probe = pymupdf.open()
-        probe.new_page(width=400, height=800)
-        probe.new_page(width=400, height=800)
+        probe.new_page(width=400, height=_PROBE_LINK_PAGE_HEIGHT)
+        probe.new_page(width=400, height=_PROBE_DEST_PAGE_HEIGHT)
         probe[0].insert_link({
             "kind": pymupdf.LINK_GOTO,
             "from": pymupdf.Rect(10, 10, 90, 30),
             "page": 1,
-            "to": pymupdf.Point(0, 200),
+            "to": pymupdf.Point(0, _PROBE_DEST_Y),
         })
         merged = pymupdf.open()
         merged.insert_pdf(probe)
         jumps = [x for x in merged[0].get_links() if x["kind"] == pymupdf.LINK_GOTO]
-        landed = jumps[0]["to"].y if jumps else 200.0
+        landed = jumps[0]["to"].y if jumps else _PROBE_DEST_Y
         probe.close()
         merged.close()
-        return abs(landed - 600.0) < 2.0  # 800 - 200: mirrored
+        slid = _PROBE_DEST_Y - _PROBE_LINK_PAGE_HEIGHT + _PROBE_DEST_PAGE_HEIGHT
+        return abs(landed - slid) < 2.0
     except Exception:  # noqa: BLE001 - never let a probe break startup
         return False
 
 
-MERGE_MIRRORS_DESTINATIONS = _merge_mirrors_destinations()
+MERGE_SHIFTS_DESTINATIONS = _merge_shifts_destinations()
 
 
 def repair_destinations(doc: pymupdf.Document) -> int:
-    """Undo the mirrored jump destinations that merging introduces.
+    """Undo the jump-destination shift that merging introduces.
 
     Runs on the freshly merged document, before any resizing, so both resized and
-    untouched pages end up with links that point where they did originally.
+    untouched pages end up with links pointing where they originally did.
     """
-    if not MERGE_MIRRORS_DESTINATIONS:
+    if not MERGE_SHIFTS_DESTINATIONS:
         return 0
     fixed = 0
     heights = [page.rect.height for page in doc]
@@ -123,8 +132,12 @@ def repair_destinations(doc: pymupdf.Document) -> int:
                 or not link.get("xref")
             ):
                 continue
+            # Undo the wrong page's height, apply the right one.
+            shift = heights[page.number] - heights[page_no]
+            if not shift:
+                continue
             corrected = dict(link)
-            corrected["to"] = pymupdf.Point(point.x, heights[page_no] - point.y)
+            corrected["to"] = pymupdf.Point(point.x, point.y + shift)
             try:
                 page.update_link(corrected)
                 fixed += 1

@@ -1,3 +1,6 @@
 Flask>=3.0
 PyMuPDF>=1.24
 Pillow>=10.2
+# Ships the Cascadia Code font used for text that Courier cannot render
+# (Greek, Cyrillic, Arabic, Hebrew). No system fonts needed.
+pymupdf-fonts>=1.0.5

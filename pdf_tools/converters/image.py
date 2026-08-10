@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pymupdf
 
-from ..imaging import add_image_page, open_image
+from ..imaging import add_image_page, open_image, widest_useful_px
 from .base import Context, Converter, Upload
 
 
@@ -17,7 +17,8 @@ class ImageConverter(Converter):
     })
 
     def add_pages(self, doc: pymupdf.Document, upload: Upload, ctx: Context) -> None:
-        with open_image(upload.data, upload.name, upload.suffix) as im:
+        hint = widest_useful_px(ctx.quality)
+        with open_image(upload.data, upload.name, upload.suffix, hint) as im:
             add_image_page(doc, im, ctx.quality, original=upload.data)
 
 

@@ -46,15 +46,11 @@ def add_text_pages(doc: pymupdf.Document, blob: bytes, name: str, ctx: Context) 
     for row in rows:
         if page is None or y > bottom:
             page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+            font.register(page)
             y = MARGIN + fonts.FONT_SIZE
         if row:
-            page.insert_text(
-                (MARGIN, y),
-                row,
-                fontsize=fonts.FONT_SIZE,
-                fontname=font.fontname,
-                fontfile=font.fontfile,
-            )
+            page.insert_text((MARGIN, y), row, fontsize=fonts.FONT_SIZE,
+                             fontname=font.fontname)
         y += step
     if page is None:  # whitespace-only input: keep a page so nothing vanishes
         doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)

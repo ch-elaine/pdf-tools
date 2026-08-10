@@ -12,6 +12,7 @@ Formats live in `converters/`; this module knows nothing about any of them.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +23,7 @@ from . import converters, layout
 from .compress import compress, save
 from .converters import Context, Upload
 from .errors import ProcessingError
+from .memory import release_caches
 from .quality import Quality, resolve
 
 
@@ -41,26 +43,31 @@ def _output_name(names: list[str]) -> str:
     return "combined_compressed.pdf"
 
 
-def build_pdf(files: list[tuple[str, bytes]], dpi: object = None) -> Result:
+def build_pdf(files: Iterable[tuple[str, bytes]], dpi: object = None) -> Result:
     """Merge every upload into one PDF, all on one paper size, and compress it.
 
-    `files` is a list of (filename, bytes) in the order the user picked them.
+    `files` yields (filename, bytes) in the order the user picked them. It may be
+    a generator, and should be: each upload's bytes are released as soon as its
+    pages are on paper, so peak memory tracks the largest single file plus the
+    document being built rather than the whole batch.
+
     `dpi` is the slider value; None uses the configured default.
     """
-    if not files:
-        raise ProcessingError("No files were uploaded.")
-
     profile = resolve(dpi)
     ctx = Context(quality=profile)
-    names = [name for name, _ in files]
-    original_bytes = sum(len(blob) for _, blob in files)
-    if len(files) == 1 and not files[0][1]:
-        raise ProcessingError(f"{names[0]} is empty.")
+    names: list[str] = []
+    original_bytes = 0
+    #: Kept only while this is a single-file job, for the "unchanged" fallback.
+    solo_blob: bytes | None = None
 
     out = pymupdf.open()
     resized = None
     try:
         for name, blob in files:
+            names.append(name)
+            original_bytes += len(blob)
+            solo_blob = blob if len(names) == 1 else None
+
             if not blob:
                 ctx.note(f"{name}: skipped, file is empty")
                 continue
@@ -72,6 +79,12 @@ def build_pdf(files: list[tuple[str, bytes]], dpi: object = None) -> Result:
                     f"({upload.suffix or 'no extension'})."
                 )
             converter.add_pages(out, upload, ctx)
+            del upload, blob  # let this upload go before reading the next one
+
+        if not names:
+            raise ProcessingError("No files were uploaded.")
+        if len(names) == 1 and not original_bytes:
+            raise ProcessingError(f"{names[0]} is empty.")
 
         if not out.page_count:
             raise ProcessingError("Nothing could be turned into PDF pages.")
@@ -86,6 +99,7 @@ def build_pdf(files: list[tuple[str, bytes]], dpi: object = None) -> Result:
         if changed:
             ctx.note(f"{changed} page(s) resized to {layout.name()}")
 
+        release_caches()
         doc.set_metadata({"producer": "pdf-tools", "creator": "pdf-tools"})
         pages = doc.page_count
         merged = save(doc)
@@ -100,13 +114,13 @@ def build_pdf(files: list[tuple[str, bytes]], dpi: object = None) -> Result:
     # A single already-optimised PDF must never come back bigger than it went in,
     # unless resizing it to the target paper was the point.
     if (
-        len(files) == 1
+        solo_blob is not None
         and names[0].lower().endswith(".pdf")
         and len(data) >= original_bytes
         and not any("resized" in note for note in ctx.notes)
     ):
         ctx.note("already optimised - returned unchanged")
-        data = files[0][1]
+        data = solo_blob
 
     return Result(
         data=data,
