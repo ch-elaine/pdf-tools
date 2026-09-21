@@ -1,0 +1,16 @@
+services:
+  pdf-tools:
+    build:
+      context: .
+      # Set to 0 for an image 420 MB smaller, without HEIC/RAW/video support.
+      args:
+        WITH_FFMPEG: 1
+    image: pdf-tools
+    ports:
+      - "8000:5000"
+    restart: unless-stopped
+    # Any setting from config.py can be overridden here:
+    # environment:
+    #   MAX_UPLOAD_MB: 60
+    #   DPI_DEFAULT: 150
+    #   PAGE_SIZE: letter

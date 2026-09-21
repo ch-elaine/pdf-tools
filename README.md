@@ -39,6 +39,29 @@ gunicorn -w 1 -b 0.0.0.0:8080 --timeout 600 app:app
 Stick to **one worker** on a 1 GB machine — each request in flight needs the memory
 described below. Start it from the project folder so `config.py` is found.
 
+## With Docker
+
+One command, from the project folder:
+
+```sh
+docker compose up
+```
+
+Then open <http://localhost:8000>. It builds on the first run, and `-d` puts it in
+the background. Change the `8000` in [compose.yaml](compose.yaml) to serve it on a
+different port, and set any of the settings below under `environment:` there.
+
+The image is Python 3.12 with gunicorn, one worker, a 600-second timeout, running
+as an unprivileged user. ffmpeg is included, which is most of its 955 MB; without
+it the image is 370 MB:
+
+```sh
+docker compose build --build-arg WITH_FFMPEG=0
+```
+
+Nothing is stored, so there are no volumes to manage — the container can be thrown
+away and rebuilt at any time.
+
 ## ffmpeg (optional)
 
 Everything above works without it. If you install it:
