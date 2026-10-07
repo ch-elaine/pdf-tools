@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 
 .venv
 __pycache__
+
+# PyInstaller (see pdf-tools.spec)
+/build/
