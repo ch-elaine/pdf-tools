@@ -1,0 +1,70 @@
+# Builds pdf-tools.exe on Windows (PyInstaller cannot cross-compile) and checks
+# that it starts and turns an upload into a PDF. Every run keeps the exe as a
+# downloadable artifact; pushing a v* tag also publishes it as a GitHub release.
+name: Windows exe
+
+on:
+  pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt waitress pyinstaller
+
+      - name: Build
+        run: pyinstaller --noconfirm pdf-tools.spec
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          ./dist/pdf-tools.exe --port 5055 --no-browser > server.log 2>&1 &
+          trap 'taskkill //F //T //IM pdf-tools.exe > /dev/null 2>&1; cat server.log' EXIT
+          for i in $(seq 60); do curl -sf -o /dev/null http://127.0.0.1:5055/ && break; sleep 1; done
+
+          printf 'Hello\nΓειά σου κόσμε\n' > hello.txt
+          curl -sf -D headers.txt -F files=@hello.txt -F dpi=100 -o out.pdf http://127.0.0.1:5055/process
+          cat headers.txt
+          head -c 5 out.pdf | grep -q '%PDF-'
+          # Greek needs the bundled Cascadia font; without it the text turns to "?".
+          if grep -qi 'characters are missing' headers.txt; then exit 1; fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pdf-tools-windows
+          path: dist/pdf-tools.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/pdf-tools.exe --title "pdf-tools $TAG" \
+            --generate-notes --notes-file - <<'EOF'
+          **Windows:** download `pdf-tools.exe` below and double-click it. A console window
+          opens and the app appears in your browser; close the console window to stop it.
+          Nothing is installed, and your files never leave your computer.
+
+          The exe isn't code-signed, so Windows may say it's from an unknown publisher:
+          click **More info → Run anyway**.
+
+          HEIC/AVIF/RAW photos and videos need ffmpeg: put `ffmpeg.exe` and `ffprobe.exe`
+          in the same folder as `pdf-tools.exe`. Everything else works without it.
+          EOF

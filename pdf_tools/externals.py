@@ -3,7 +3,8 @@
 Nothing here is required for the core pipeline (PDFs, images, text, HTML). Tools
 are always resolved through PATH — never a hard-coded install location — so the
 same code works on a Raspberry Pi, a container or a laptop. Each tool may also
-be pointed at explicitly with an environment variable, e.g. FFMPEG_BIN.
+be pointed at explicitly with an environment variable, e.g. FFMPEG_BIN, and the
+packaged pdf-tools.exe also finds one sitting in the same folder as itself.
 
 Command names, timeouts and the contact-sheet grid all come from config.py.
 """
@@ -13,6 +14,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -32,8 +34,11 @@ def find(tool: str) -> str | None:
     override = os.environ.get(f"{tool.upper()}_BIN")
     if override:
         return override if shutil.which(override) else None
+    # A packaged build is usually double-clicked, not run from a configured
+    # shell, so "put ffmpeg.exe next to it" should be enough.
+    beside_exe = str(Path(sys.executable).parent) if getattr(sys, "frozen", False) else None
     for name in names:
-        found = shutil.which(name)
+        found = shutil.which(name) or (beside_exe and shutil.which(name, path=beside_exe))
         if found:
             return found
     return None

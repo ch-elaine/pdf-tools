@@ -62,6 +62,35 @@ docker compose build --build-arg WITH_FFMPEG=0
 Nothing is stored, so there are no volumes to manage — the container can be thrown
 away and rebuilt at any time.
 
+## Windows app
+
+No Python needed: download `pdf-tools.exe` from the
+[latest release](https://github.com/ch-elaine/pdf-tools/releases/latest) and
+double-click it. A console window opens and the page appears in your browser;
+close the window to stop it. It listens on this computer only, at port 5000, or
+any free port if that one is taken. `--port`, `--host` and `--no-browser` work
+from a command prompt, and so do the settings below as environment variables.
+
+The exe isn't code-signed, so Windows may warn about an unknown publisher — click
+**More info → Run anyway**. For HEIC, RAW and video, put `ffmpeg.exe` and
+`ffprobe.exe` in the same folder as `pdf-tools.exe`.
+
+Releases are built by [a workflow](.github/workflows/windows-exe.yml) on a Windows
+machine, since PyInstaller can't cross-compile. Pushing a tag publishes one:
+
+```sh
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+To build it yourself on Windows (or a native binary on macOS or Linux):
+
+```sh
+pip install -r requirements.txt waitress pyinstaller
+pyinstaller pdf-tools.spec
+```
+
+The result is in `dist/`.
+
 ## ffmpeg (optional)
 
 Everything above works without it. If you install it:
@@ -129,6 +158,8 @@ every page upright, even wide ones).
 ```
 app.py                     Flask routes and the --port command line
 config.py                  every setting
+launcher.py                the Windows exe: starts the server, opens the browser
+pdf-tools.spec             PyInstaller recipe for it
 templates/, static/        the single page
 pdf_tools/
   pipeline.py              dispatch -> resize to A4 -> merge -> compress
